@@ -54,14 +54,6 @@ int main()
 
 	cout << "Connection Established" << endl;
 
-	//RECEIVE ORIGINAL PACKET FROM CLIENT
-	// ***** YOUR CODE GOES HERE ****** //
-
-	//UPDATE AND SEND ACK PACKET RESPONSE TO CLIENT
-	// ***** YOUR CODE GOES HERE ****** //
-	
-	//RECEIVE THE HEADER FOR FINISH
-	// ***** YOUR CODE GOES HERE ****** //
 	
 	
 	closesocket(ConnectionSocket);	//closes incoming socket

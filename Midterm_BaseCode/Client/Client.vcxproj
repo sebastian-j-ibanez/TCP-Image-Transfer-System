@@ -144,6 +144,9 @@
   <ItemGroup>
     <ClInclude Include="PktDef.h" />
   </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\..\..\..\Course Material\CSCN72050-Mobile and Networked Systems\Midterms\W23_Solution\Client\image.jpeg" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

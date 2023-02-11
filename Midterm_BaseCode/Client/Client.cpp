@@ -33,14 +33,6 @@ int main()
 		return 0;
 	}
 
-	//**** GENERATE AND SEND A PACKET OF INFORMATION TO THE SERVER
-	// ***** YOUR CODE GOES HERE ****** //
-	
-	//RECEIVE AN ACK HEADER WITH MESSAGE FROM SERVER
-	// ***** YOUR CODE GOES HERE ****** //
-
-	//SEND A FINISH HEADER TO THE SERVER TO CLOSE THE CONNECTION
-	// ***** YOUR CODE GOES HERE ****** //
 	
 	//closes connection and socket
 	closesocket(ClientSocket);
