@@ -1,6 +1,7 @@
 #include <windows.networking.sockets.h>
 #include <iostream>
 #include <string>
+#include <fstream>
 #include "../Client/PktDef.h"
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -54,7 +55,30 @@ int main()
 
 	cout << "Connection Established" << endl;
 
-	
+	char* RxBuffer = new char[BUFFER_SIZE];
+
+	while (recv(ConnectionSocket, RxBuffer, BUFFER_SIZE, 0))
+	{
+		char* fileBuffer = new char[BUFFER_SIZE];
+		
+		PktDef currentPacket(RxBuffer);
+		currentPacket.displayPacket();
+
+		if (currentPacket.getErrFlag() == false)
+		{
+			ofstream outputStream;
+			outputStream.open("output.txt", ios::app | ios::binary);
+			outputStream.write(fileBuffer, BUFFER_SIZE);
+
+			outputStream.close();
+		}
+		else cout << "Error packet received" << endl;
+
+		PktDef ackPacket;
+		ackPacket.setHeaderAckFlag(true);
+		RxBuffer = ackPacket.serializePacket();
+		send(ConnectionSocket, RxBuffer, sizeof(RxBuffer), 0);
+	}
 	
 	closesocket(ConnectionSocket);	//closes incoming socket
 	closesocket(ServerSocket);	    //closes server socket	
