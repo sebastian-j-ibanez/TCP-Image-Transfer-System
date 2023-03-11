@@ -55,27 +55,38 @@ int main()
 
 	cout << "Connection Established" << endl;
 
-	char* RxBuffer = new char[BUFFER_SIZE];
+	char* RxBuffer = new char[PktDef::getMaxPacketSize()];
+	
+	bool receiveLoop = true;
+	while (receiveLoop)
+	{	
+		recv(ConnectionSocket, RxBuffer, PktDef::getMaxPacketSize(), 0);
 
-	while (recv(ConnectionSocket, RxBuffer, BUFFER_SIZE, 0))
-	{
-		char* fileBuffer = new char[BUFFER_SIZE];
-		
 		PktDef currentPacket(RxBuffer);
 		currentPacket.displayPacket();
 
-		if (currentPacket.getErrFlag() == false)
+		if (currentPacket.getFinFlag() == 0 && currentPacket.getBodyLength() != 0)		//Transmitted packet
 		{
-			ofstream outputStream;
-			outputStream.open("output.txt", ios::app | ios::binary);
-			outputStream.write(fileBuffer, BUFFER_SIZE);
+			char* fileBuffer = new char[MAX_BODY];
+			memcpy(fileBuffer, currentPacket.getBodyAddress(), currentPacket.getBodyLength());
 
+			ofstream outputStream;
+			outputStream.open("image.jpeg", ios::app | ios::binary);
+			if(outputStream.is_open()) outputStream.write(fileBuffer, MAX_BODY);
 			outputStream.close();
 		}
-		else cout << "Error packet received" << endl;
+		else if (currentPacket.getFinFlag() == 1) receiveLoop = false;								//Transmission finished
+		else
+		{
+			cout << "Error packet received" << endl;									//Transmission error
+			receiveLoop = false;
+		}
 
+		//Send acknowledge packet
 		PktDef ackPacket;
 		ackPacket.setHeaderAckFlag(true);
+		ackPacket.setHeaderSource(SERVER_ID);
+		ackPacket.setHeaderDestination(CLIENT_ID);
 		RxBuffer = ackPacket.serializePacket();
 		send(ConnectionSocket, RxBuffer, sizeof(RxBuffer), 0);
 	}
@@ -83,11 +94,6 @@ int main()
 	closesocket(ConnectionSocket);	//closes incoming socket
 	closesocket(ServerSocket);	    //closes server socket	
 	WSACleanup();					//frees Winsock resources
-
-	//This code has been added to simply keep the console window open until you
-	//type a character.
-	int garbage;
-	cin >> garbage;
 
 	return 1;
 }

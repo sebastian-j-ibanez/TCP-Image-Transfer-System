@@ -2,7 +2,7 @@
 #include <iostream>
 using namespace std;
 
-const int BUFFER_SIZE = 50;
+const int MAX_BODY = 50;
 const unsigned int CLIENT_ID = 15;
 const unsigned int SERVER_ID = 25;
 
@@ -12,8 +12,8 @@ class PktDef
 	{
 		struct PktHeader
 		{
-			unsigned int sourceID : 4;
-			unsigned int destinationID : 4;
+			unsigned char sourceID;
+			unsigned char destinationID;
 			unsigned int sequenceNum;
 			bool finFlag : 1;
 			bool ackFlag : 1;
@@ -31,38 +31,80 @@ class PktDef
 public:
 	PktDef()
 	{
-		Packet.Header.sourceID = NULL;
-		Packet.Header.destinationID = NULL;
+		Packet.Header.sourceID = ' ';
+		Packet.Header.destinationID = ' ';
 		Packet.Header.sequenceNum = 0;
 		Packet.Header.finFlag = false;
 		Packet.Header.ackFlag = false;
 		Packet.Header.errFlag = false;
 		Packet.Header.bodyLength = 0;
 
-		Packet.bodyBuffer = new char[Packet.Header.bodyLength];
+		Packet.bodyBuffer = nullptr;
 		Packet.CRC = 0xF500FF75;
 
-		pOutBuffer = NULL;
+		pOutBuffer = nullptr;
 	}
 
 	PktDef(char* RxBuffer)
 	{
-		//Deserialize into PktDef
+		//Deserialize RxBuffer into PktDef
 		size_t offset = 0;
-		memcpy(&Packet.Header, RxBuffer + offset, sizeof(Packet.Header));
-		offset += sizeof(Packet.Header);
-		memcpy(&Packet.bodyBuffer, RxBuffer + offset, Packet.Header.bodyLength);
+		memcpy(&Packet.Header.sourceID, RxBuffer + offset, sizeof(Packet.Header.sourceID));
+		offset += sizeof(Packet.Header.sourceID);
+		memcpy(&Packet.Header.destinationID, RxBuffer + offset, sizeof(Packet.Header.destinationID));
+		offset += sizeof(Packet.Header.destinationID);
+		memcpy(&Packet.Header.sequenceNum, RxBuffer + offset, sizeof(Packet.Header.sequenceNum));
+		offset += sizeof(Packet.Header.sequenceNum);
+		memcpy(&Packet.Header.sequenceNum + 1, RxBuffer + offset, sizeof(char));
+		offset += sizeof(char);
+		memcpy(&Packet.Header.bodyLength, RxBuffer + offset, sizeof(Packet.Header.bodyLength));
 		offset += sizeof(Packet.Header.bodyLength);
+		
+		//Allocate bodyBuffer memory based on bodyLength
+		if (Packet.bodyBuffer) delete[] Packet.bodyBuffer;
+		Packet.bodyBuffer = new char[Packet.Header.bodyLength];
+
+		memcpy(Packet.bodyBuffer, RxBuffer + offset, Packet.Header.bodyLength);
+		offset += Packet.Header.bodyLength;
 		memcpy(&Packet.CRC, RxBuffer + offset, sizeof(Packet.CRC));
 		offset += sizeof(Packet.CRC);
 
-		pOutBuffer = NULL;
+		pOutBuffer = nullptr;
+	}
+
+	char* serializePacket()
+	{
+		if (pOutBuffer) delete pOutBuffer;
+
+		//Allocate buffer
+		pOutBuffer = new char[getMaxPacketSize() + 500];
+
+		//Serialize packet
+		size_t offset = 0;
+		memcpy(pOutBuffer + offset, &Packet.Header.sourceID, sizeof(Packet.Header.sourceID));
+		offset += sizeof(Packet.Header.sourceID);
+		memcpy(pOutBuffer + offset, &Packet.Header.destinationID, sizeof(Packet.Header.destinationID));
+		offset += sizeof(Packet.Header.destinationID);
+		memcpy(pOutBuffer + offset, &Packet.Header.sequenceNum, sizeof(Packet.Header.sequenceNum));
+		offset += sizeof(Packet.Header.sequenceNum);
+
+		//3 bit flags stored in 1 byte
+		memcpy(pOutBuffer + offset, &Packet.Header.sequenceNum + 1, sizeof(char));
+		offset += sizeof(char);
+
+		memcpy(pOutBuffer + offset, &Packet.Header.bodyLength, sizeof(Packet.Header.bodyLength));
+		offset += sizeof(Packet.Header.bodyLength);
+		memcpy(pOutBuffer + offset, Packet.bodyBuffer, Packet.Header.bodyLength);
+		offset += Packet.Header.bodyLength;
+		memcpy(pOutBuffer + offset, &Packet.CRC, sizeof(Packet.CRC));
+		offset += sizeof(Packet.CRC);
+
+		return pOutBuffer;
 	}
 
 	~PktDef()
 	{
-		delete Packet.bodyBuffer;
-		delete pOutBuffer;
+		if(Packet.bodyBuffer) delete[] Packet.bodyBuffer;
 	}
 
 	void setHeaderSource(unsigned int input)
@@ -110,11 +152,6 @@ public:
 		return Packet.Header.finFlag;
 	}
 
-	bool getErrFlag()
-	{
-		return Packet.Header.errFlag;
-	}
-
 	unsigned int getCRC()
 	{
 		return Packet.CRC;
@@ -122,12 +159,17 @@ public:
 
 	size_t getPacketSize()
 	{
-		return sizeof(Packet.Header) + Packet.Header.bodyLength + sizeof(Packet.CRC);
+		return sizeof(Packet.Header.sourceID) + sizeof(Packet.Header.destinationID) + sizeof(Packet.Header.sequenceNum) + sizeof(char) + sizeof(Packet.Header.bodyLength) + Packet.Header.bodyLength + sizeof(Packet.CRC);
+	}
+
+	static size_t getMaxPacketSize()
+	{
+		return sizeof(Packet.Header.sourceID) + sizeof(Packet.Header.destinationID) + sizeof(Packet.Header.sequenceNum) + sizeof(char) + sizeof(Packet.Header.bodyLength) + MAX_BODY + sizeof(Packet.CRC);
 	}
 
 	void swapSourceDestinationID()
 	{
-		unsigned int temp = Packet.Header.sourceID;
+		unsigned char temp = Packet.Header.sourceID;
 		Packet.Header.sourceID = Packet.Header.destinationID;
 		Packet.Header.destinationID = temp;
 	}
@@ -135,13 +177,12 @@ public:
 	void displayPacket()
 	{
 		cout << "Packet Information" << endl;
-		cout << "Src: "<< Packet.CRC << "Dest: " << Packet.Header.destinationID << "SeqNum: " << Packet.Header.sequenceNum << "Flages (FIN/ACK/ERR): " << Packet.Header.finFlag << "/" << Packet.Header.ackFlag << "/" << Packet.Header.errFlag << "/" <<  endl;
+		cout << "Src: "<< (int)Packet.Header.sourceID << " Dest: " << (int)Packet.Header.destinationID << " SeqNum: " << Packet.Header.sequenceNum << " Flags (FIN/ACK/ERR): " << Packet.Header.finFlag << "/" << Packet.Header.ackFlag << "/" << Packet.Header.errFlag << "/" <<  endl;
 	}
 
 	void setBodyBuffer(char* inputBuffer, int size)
 	{
-		if (Packet.bodyBuffer)
-			delete Packet.bodyBuffer;
+		if (Packet.bodyBuffer) delete Packet.bodyBuffer;
 		
 		//Allocate bodyBuffer
 		Packet.bodyBuffer = new char[size];
@@ -154,28 +195,4 @@ public:
 	{
 		return Packet.bodyBuffer;
 	}
-
-	char* serializePacket()
-	{
-		if (pOutBuffer)
-			delete pOutBuffer;
-
-		size_t PacketSize = getPacketSize();
-
-		//Allocate buffer
-		pOutBuffer = new char[PacketSize];
-
-		//Serialize packet
-		size_t offset = 0;
-		memcpy(pOutBuffer, &Packet.Header, sizeof(Packet.Header));
-		offset += sizeof(Packet.Header);
-		memcpy(pOutBuffer + offset, &Packet.bodyBuffer, Packet.Header.bodyLength);
-		offset += Packet.Header.bodyLength;
-		memcpy(pOutBuffer + offset, &Packet.CRC, sizeof(Packet.CRC));
-		offset += sizeof(Packet.CRC);
-
-		return pOutBuffer;
-	}
-
-
 };
